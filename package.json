@@ -1,6 +1,6 @@
 {
   "name": "serverless-apigateway-plugin",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "this is the serverless plugin to customize the aws api gateway",
   "main": "index.js",
   "repository": {

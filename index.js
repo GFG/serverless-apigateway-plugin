@@ -46,27 +46,26 @@ class APIGatewayCustomiser {
           }
         });
       })
-        .then(async (apiId) => {
-          this.serverless.cli.log('Running with async/await');
-          const { responses, binaryTypes } = this.custom.apigateway;
-          if (responses) {
-            for (let i = 0; i < responses.length; i++) {
-              const response = responses[i];
+        .then((apiId) => {
+          const promises = [];
+          if (this.custom.apigateway.responses) {
+            this.custom.apigateway.responses.forEach((response) => {
               if (response.response.headers) {
-                await this.configHeaders(apiId, response.response);
+                promises.push(this.configHeaders.bind(this, apiId, response.response));
               }
               if (response.response.bodyMappingTemplate) {
-                await this.configBodyMapping(apiId, response.response);
+                promises.push(this.configBodyMapping.bind(this, apiId, response.response));
               }
-            }
+            });
           }
-          if (binaryTypes) {
-            await this.configBinary(apiId);
+          if (this.custom.apigateway.binaryTypes) {
+            promises.push(this.configBinary.bind(this, apiId));
           }
-          return apiId;
+          promises.push(apiId);
+          return Promise.mapSeries(promises, fn => fn());
         })
-        .then((apiId) => {
-          this.createDeployment(apiId);
+        .then((promiseData) => {
+          this.createDeployment(promiseData.pop());
         })
         .then(() => this.serverless.cli.log('API Gateway Configuring: End'))
         .catch((err) => {
