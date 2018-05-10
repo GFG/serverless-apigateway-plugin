@@ -61,11 +61,11 @@ class APIGatewayCustomiser {
           if (this.custom.apigateway.binaryTypes) {
             promises.push(this.configBinary.bind(this, apiId));
           }
-          promises.push(apiId);
-          return Promise.mapSeries(promises, fn => fn());
+
+          return Promise.mapSeries(promises, fn => fn()).then(() => apiId);
         })
-        .then((promiseData) => {
-          this.createDeployment(promiseData.pop());
+        .then((apiId) => {
+          this.createDeployment(apiId);
         })
         .then(() => this.serverless.cli.log('API Gateway Configuring: End'))
         .catch((err) => {
