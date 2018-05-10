@@ -15,10 +15,10 @@ class APIGatewayCustomiser {
   }
 
   /**
-     * @description hook to after deployment
-     *
-     * @return {Promise}
-     */
+   * @description hook to after deployment
+   *
+   * @return {Promise}
+   */
   afterDeployFunctions() {
     this.stage = this.serverless.service.provider.stage || 'dev';
     this.region = this.serverless.service.provider.region || 'ap-southeast-1';
@@ -29,8 +29,8 @@ class APIGatewayCustomiser {
   }
 
   /**
-     * @description modify the gateway
-     */
+   * @description modify the gateway
+   */
   modifyAPIGateway() {
     this.serverless.cli.log('API Gateway Configuring: Start');
     /** Filter functions for those need API Gateway Config */
@@ -46,26 +46,27 @@ class APIGatewayCustomiser {
           }
         });
       })
-        .then((apiId) => {
-          const promises = [];
-          if (this.custom.apigateway.responses) {
-            this.custom.apigateway.responses.forEach((response) => {
+        .then(async (apiId) => {
+          this.serverless.cli.log('Running with async/await');
+          const { responses, binaryTypes } = this.custom.apigateway;
+          if (responses) {
+            for (let i = 0; i < responses.length; i++) {
+              const response = responses[i];
               if (response.response.headers) {
-                promises.push(this.configHeaders(apiId, response.response));
+                await this.configHeaders(apiId, response.response);
               }
               if (response.response.bodyMappingTemplate) {
-                promises.push(this.configBodyMapping(apiId, response.response));
+                await this.configBodyMapping(apiId, response.response);
               }
-            });
+            }
           }
-          if (this.custom.apigateway.binaryTypes) {
-            promises.push(this.configBinary(apiId));
+          if (binaryTypes) {
+            await this.configBinary(apiId);
           }
-          promises.push(apiId);
-          return Promise.all(promises);
+          return apiId;
         })
-        .then((promiseData) => {
-          this.createDeployment(promiseData.pop());
+        .then((apiId) => {
+          this.createDeployment(apiId);
         })
         .then(() => this.serverless.cli.log('API Gateway Configuring: End'))
         .catch((err) => {
@@ -75,41 +76,44 @@ class APIGatewayCustomiser {
   }
 
   /**
-     * @description this is to creates a deployment resources, to make all changes effect
-     *
-     * @param apiId - the API id
-     * @param response
-     */
+   * @description this is to creates a deployment resources, to make all changes effect
+   *
+   * @param apiId - the API id
+   * @param response
+   */
   createDeployment(apiId) {
     return new Promise((resolve, reject) => {
-      this.apiGatewaySDK.createDeployment({
-        restApiId: apiId,
-        stageName: this.stage,
-        description: 'This deployment created by serverless-apigateway-plugin'
-      }, (error, data) => {
-        if (error) {
-          if (error.code === 'TooManyRequestsException') {
-            this.serverless.cli.log('Deployment failed! Retry in 5s');
-            setTimeout(() => {
-              this.createDeployment(apiId);
-            }, this.createDeploymentRetryDelay);
+      this.apiGatewaySDK.createDeployment(
+        {
+          restApiId: apiId,
+          stageName: this.stage,
+          description: 'This deployment created by serverless-apigateway-plugin'
+        },
+        (error, data) => {
+          if (error) {
+            if (error.code === 'TooManyRequestsException') {
+              this.serverless.cli.log('Deployment failed! Retry in 5s');
+              setTimeout(() => {
+                this.createDeployment(apiId);
+              }, this.createDeploymentRetryDelay);
+            } else {
+              reject(error);
+            }
           } else {
-            reject(error);
+            this.serverless.cli.log('Create deployment finished');
+            resolve('Success');
           }
-        } else {
-          this.serverless.cli.log('Create deployment finished');
-          resolve('Success');
         }
-      });
+      );
     });
   }
 
   /**
-     * @description this is to configure the headers
-     *
-     * @param apiId - the API id
-     * @param response
-     */
+   * @description this is to configure the headers
+   *
+   * @param apiId - the API id
+   * @param response
+   */
   configHeaders(apiId, response) {
     return new Promise((resolve, reject) => {
       const params = {
@@ -132,11 +136,11 @@ class APIGatewayCustomiser {
   }
 
   /**
-     * @description configure the body mapping templates
-     *
-     * @param apiId
-     * @param response
-     */
+   * @description configure the body mapping templates
+   *
+   * @param apiId
+   * @param response
+   */
   configBodyMapping(apiId, response) {
     return new Promise((resolve, reject) => {
       const params = {
@@ -147,7 +151,10 @@ class APIGatewayCustomiser {
         patchOperations: [
           {
             op: 'add',
-            path: `/responseTemplates/${response.bodyMappingTemplate.contentType.replace('/', '~1')}`,
+            path: `/responseTemplates/${response.bodyMappingTemplate.contentType.replace(
+              '/',
+              '~1'
+            )}`,
             value: response.bodyMappingTemplate.content
           }
         ]
@@ -156,7 +163,9 @@ class APIGatewayCustomiser {
         if (err) {
           reject(err);
         } else {
-          this.serverless.cli.log('API Gateway Configuring: Body mapping templates are set correctly');
+          this.serverless.cli.log(
+            'API Gateway Configuring: Body mapping templates are set correctly'
+          );
           resolve(`Body Mapping Templates set successfully: ${response.type.toString()}`);
         }
       });
@@ -164,9 +173,9 @@ class APIGatewayCustomiser {
   }
 
   /**
-     * @description binary support configuration
-     * @param apiId
-     */
+   * @description binary support configuration
+   * @param apiId
+   */
   configBinary(apiId) {
     const patchOperationsArray = [];
     this.custom.apigateway.binaryTypes.forEach((e) => {
